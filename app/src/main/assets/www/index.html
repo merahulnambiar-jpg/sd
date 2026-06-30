@@ -83,6 +83,7 @@
     flex-direction:column;
     min-height:0;
     overflow-y:auto;
+    -webkit-overflow-scrolling: touch;
   }
   .section{
     padding:16px 18px;
@@ -104,22 +105,11 @@
     background:#fbfaf5;
   }
   .upload-zone p{ margin:4px 0 10px; font-size:0.8rem; color:var(--muted); }
+  .upload-zone .hint{ font-family:var(--mono); font-size:0.66rem; color:var(--teal-deep); margin-top:8px; }
   .upload-zone button.primary-upload{
     width:100%;
   }
   input[type=file]{ display:none; }
-  textarea#pasteArea{
-    width:100%;
-    margin-top:10px;
-    height:64px;
-    font-family:var(--mono);
-    font-size:0.78rem;
-    border:1px solid var(--line);
-    border-radius:4px;
-    padding:8px;
-    resize:vertical;
-    background:#fdfcf8;
-  }
   .row{ display:flex; gap:8px; margin-top:8px; }
   button{
     font-family: var(--mono);
@@ -141,44 +131,6 @@
     color:var(--ink);
   }
   button:disabled{ opacity:0.4; cursor:not-allowed; }
-  .format-toggle{
-    font-family: var(--mono);
-    font-size:0.7rem;
-    color:var(--teal);
-    cursor:pointer;
-    margin-top:8px;
-    display:inline-block;
-    text-decoration:underline;
-  }
-  .format-box{
-    margin-top:8px;
-    background:#fbfaf5;
-    border:1px solid var(--line);
-    border-radius:4px;
-    padding:10px;
-    font-family:var(--mono);
-    font-size:0.7rem;
-    line-height:1.5;
-    color:var(--teal-deep);
-    display:none;
-    white-space:pre-wrap;
-  }
-  .format-box.show{ display:block; }
-  label.fieldlabel{
-    font-family:var(--mono);
-    font-size:0.7rem;
-    color:var(--muted);
-    text-transform:uppercase;
-    letter-spacing:0.6px;
-  }
-  input[type=number]{
-    width:70px;
-    font-family:var(--mono);
-    border:1px solid var(--line);
-    border-radius:4px;
-    padding:5px 6px;
-    font-size:0.8rem;
-  }
   .summary{
     display:flex;
     gap:14px;
@@ -191,6 +143,7 @@
   #stops{
     flex:1;
     overflow-y:auto;
+    -webkit-overflow-scrolling: touch;
     padding:0;
   }
   .stop{
@@ -232,6 +185,7 @@
     padding:0;
   }
   .icon-btn:hover{ background:var(--amber-soft); border-color:var(--amber); }
+  .list-end-spacer{ height:28px; }
   .empty-state{
     padding:30px 18px;
     text-align:center;
@@ -288,6 +242,7 @@
     width:100%;
     max-height:80vh;
     overflow-y:auto;
+    -webkit-overflow-scrolling: touch;
     padding:18px;
   }
   .modal h3{
@@ -341,40 +296,15 @@
     <div class="section">
       <h2>01 — Load points</h2>
       <div class="upload-zone" id="dropZone">
-        <p>Upload a CSV (or JSON) with name, lat, lng columns — or drag a file here</p>
-        <button type="button" class="primary-upload" id="uploadBtn">Upload CSV file</button>
+        <p>Upload an Excel file with name, lat, lng columns — or drag it here</p>
+        <button type="button" class="primary-upload" id="uploadBtn">Upload Excel file</button>
+        <div class="hint">Columns: name, lat, lng (first row = headers). .xlsx, .xls, or .csv</div>
       </div>
-      <input type="file" id="fileInput" accept=".csv,.json,application/json,text/csv" />
-      <span class="format-toggle" id="formatToggle">show required format ▾</span>
-      <div class="format-box" id="formatBox">CSV — header row required:
-name,lat,lng
-Pier 7 Cafe,12.9716,77.5946
-Botanical Garden,12.9784,77.5901
-(name column optional; lat/lng required)
-
-JSON — array of objects:
-[
-  {"name": "Pier 7 Cafe", "lat": 12.9716, "lng": 77.5946},
-  {"name": "Botanical Garden", "lat": 12.9784, "lng": 77.5901}
-]</div>
-      <textarea id="pasteArea" placeholder="...or paste CSV/JSON here, then click Parse"></textarea>
-      <div class="row">
-        <button id="parseBtn" class="secondary">Parse pasted text</button>
-      </div>
-    </div>
-
-    <div class="section">
-      <h2>02 — Route settings</h2>
-      <div class="row" style="align-items:center; flex-wrap:wrap;">
-        <label class="fieldlabel">Avg speed</label>
-        <input type="number" id="speedInput" value="35" min="1" />
-        <span class="fieldlabel">km/h</span>
-        <button id="recalcBtn" disabled>Compute route</button>
-      </div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
     </div>
 
     <div class="section" id="summarySection" style="display:none;">
-      <h2>03 — Summary</h2>
+      <h2>02 — Summary</h2>
       <div class="summary">
         <div><span class="num" id="sumStops">0</span><span class="lbl">Stops</span></div>
         <div><span class="num" id="sumDist">0</span><span class="lbl">km total</span></div>
@@ -423,6 +353,7 @@ JSON — array of objects:
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ---------- State ----------
 let points = [];        // {name, lat, lng, visited, data, savedAt}
@@ -437,6 +368,7 @@ let activeModalIdx = null;
 let map;
 
 const SAME_LOCATION_KM = 0.05; // ~50m threshold to treat points as "same location"
+const AVG_SPEED_KMH = 35;      // used for estimated travel time
 
 // ---------- Map init ----------
 map = L.map('map', { zoomControl: true }).setView([20, 0], 2);
@@ -587,58 +519,43 @@ function groupForIdx(idx){
   return groups.find(g => g.indices.includes(idx));
 }
 
-// ---------- Parsing ----------
-function parseCSV(text){
-  const lines = text.trim().split(/\r?\n/).filter(l => l.trim().length);
-  if (!lines.length) return [];
-  const header = lines[0].split(',').map(h => h.trim().toLowerCase());
-  const latIdx = header.indexOf('lat');
-  const lngIdx = header.indexOf('lng') >= 0 ? header.indexOf('lng') : header.indexOf('lon');
-  const nameIdx = header.indexOf('name');
-  if (latIdx === -1 || lngIdx === -1) throw new Error('CSV must have lat and lng columns');
+// ---------- Parsing (Excel / CSV via SheetJS) ----------
+function findKey(rowKeys, candidates){
+  return rowKeys.find(k => candidates.includes(String(k).trim().toLowerCase()));
+}
+
+function parseWorkbook(arrayBuffer){
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  const sheetName = wb.SheetNames[0];
+  if (!sheetName) throw new Error('No sheet found in the file');
+  const sheet = wb.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+  if (!rows.length) throw new Error('No rows found in the first sheet');
+
+  const keys = Object.keys(rows[0]);
+  const latKey = findKey(keys, ['lat','latitude']);
+  const lngKey = findKey(keys, ['lng','lon','long','longitude']);
+  const nameKey = findKey(keys, ['name','point','location','label']);
+  if (!latKey || !lngKey) throw new Error('Could not find lat/lng columns — first row must have headers like name, lat, lng');
+
   const out = [];
-  for (let i=1;i<lines.length;i++){
-    const cols = lines[i].split(',').map(c => c.trim());
-    const lat = parseFloat(cols[latIdx]);
-    const lng = parseFloat(cols[lngIdx]);
-    if (isNaN(lat) || isNaN(lng)) continue;
-    out.push({ name: nameIdx >= 0 ? (cols[nameIdx] || `Point ${i}`) : `Point ${i}`, lat, lng });
-  }
+  rows.forEach((r, i) => {
+    const lat = parseFloat(r[latKey]);
+    const lng = parseFloat(r[lngKey]);
+    if (isNaN(lat) || isNaN(lng)) return;
+    out.push({ name: nameKey && r[nameKey] !== '' ? String(r[nameKey]) : `Point ${i+1}`, lat, lng });
+  });
   return out;
 }
 
-function parseJSON(text){
-  const data = JSON.parse(text);
-  if (!Array.isArray(data)) throw new Error('JSON must be an array of {name, lat, lng}');
-  return data.map((d,i) => {
-    const lat = parseFloat(d.lat ?? d.latitude);
-    const lng = parseFloat(d.lng ?? d.lon ?? d.longitude);
-    if (isNaN(lat) || isNaN(lng)) throw new Error(`Item ${i} missing valid lat/lng`);
-    return { name: d.name || `Point ${i+1}`, lat, lng };
-  });
-}
-
-function loadFromText(text, hintJSON){
-  let parsed;
-  const trimmed = text.trim();
-  try {
-    if (hintJSON || trimmed.startsWith('[') || trimmed.startsWith('{')) {
-      parsed = parseJSON(trimmed);
-    } else {
-      parsed = parseCSV(trimmed);
-    }
-  } catch (e) {
-    alert('Could not parse data: ' + e.message);
-    return;
-  }
-  if (!parsed.length){ alert('No valid points found.'); return; }
+function loadPoints(parsed){
+  if (!parsed.length){ alert('No valid points found in the file.'); return; }
   points = parsed.map(p => ({ ...p, visited:false, data:'', savedAt:null }));
-  document.getElementById('recalcBtn').disabled = false;
   document.getElementById('headerStat').textContent = `${points.length} points loaded`;
   runRoute();
 }
 
-// ---------- File / paste handlers ----------
+// ---------- File handlers ----------
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 document.getElementById('uploadBtn').addEventListener('click', () => fileInput.click());
@@ -655,20 +572,17 @@ fileInput.addEventListener('change', e => {
 });
 function readFile(file){
   const reader = new FileReader();
-  reader.onload = ev => loadFromText(ev.target.result, file.name.endsWith('.json'));
-  reader.readAsText(file);
+  reader.onload = ev => {
+    try {
+      const parsed = parseWorkbook(ev.target.result);
+      loadPoints(parsed);
+    } catch (e) {
+      alert('Could not read file: ' + e.message);
+    }
+  };
+  reader.onerror = () => alert('Could not read the selected file.');
+  reader.readAsArrayBuffer(file);
 }
-document.getElementById('parseBtn').addEventListener('click', () => {
-  const text = document.getElementById('pasteArea').value;
-  if (!text.trim()){ alert('Paste some CSV or JSON data first.'); return; }
-  loadFromText(text, false);
-});
-document.getElementById('formatToggle').addEventListener('click', () => {
-  const box = document.getElementById('formatBox');
-  box.classList.toggle('show');
-  document.getElementById('formatToggle').textContent = box.classList.contains('show') ? 'hide required format ▴' : 'show required format ▾';
-});
-document.getElementById('recalcBtn').addEventListener('click', runRoute);
 
 // ---------- Route computation + render ----------
 function runRoute(){
@@ -684,8 +598,7 @@ function runRoute(){
 
 function renderSummary(totalKm){
   document.getElementById('summarySection').style.display = 'block';
-  const speed = parseFloat(document.getElementById('speedInput').value) || 35;
-  const hrs = totalKm / speed;
+  const hrs = totalKm / AVG_SPEED_KMH;
   const h = Math.floor(hrs), mins = Math.round((hrs - h) * 60);
   const doneCount = points.filter(p => p.visited).length;
   document.getElementById('sumStops').textContent = points.length;
@@ -732,6 +645,9 @@ function renderStops(){
     });
     container.appendChild(div);
   });
+  const spacer = document.createElement('div');
+  spacer.className = 'list-end-spacer';
+  container.appendChild(spacer);
 }
 
 function escapeHtml(s){
@@ -919,13 +835,6 @@ document.getElementById('downloadAllBtn').addEventListener('click', () => {
     return [order+1, p.name, p.lat, p.lng, p.visited, p.data || '', p.savedAt || ''].map(csvEscape).join(',');
   });
   triggerDownload('waypoint-run-data.csv', header + rows.join('\n') + '\n');
-});
-
-document.getElementById('speedInput').addEventListener('change', () => {
-  if (route.length) {
-    const dm = buildDistMatrix(points);
-    renderSummary(routeLength(route, dm));
-  }
 });
 </script>
 </body>
