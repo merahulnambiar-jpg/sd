@@ -2,6 +2,7 @@ package com.waypointrun.app
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -85,8 +86,11 @@ class MainActivity : ComponentActivity() {
                 params: FileChooserParams?
             ): Boolean {
                 filePathCallback = callback
+                val intent = params?.createIntent() ?: Intent(Intent.ACTION_GET_CONTENT).apply {
+                    type = "*/*"
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                }
                 return try {
-                    val intent = params?.createIntent()
                     fileChooserLauncher.launch(intent)
                     true
                 } catch (e: Exception) {
